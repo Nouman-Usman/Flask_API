@@ -1,6 +1,3 @@
-Here is the README in Markdown format:
-
-```markdown
 # LangGraph Legal Assistant
 
 ## Overview
@@ -12,8 +9,8 @@ LangGraph Legal Assistant is an AI-powered tool designed to assist with legal qu
 - [Overview](#overview)
 - [Features](#features)
 - [Installation](#installation)
-  - [Prerequisites](#prerequisites)
-  - [Steps](#steps)
+    - [Prerequisites](#prerequisites)
+    - [Steps](#steps)
 - [Usage](#usage)
 - [Configuration](#configuration)
 - [Contributors](#contributors)
@@ -39,36 +36,36 @@ LangGraph Legal Assistant is an AI-powered tool designed to assist with legal qu
 
 1. **Clone the repository:**
 
-   ```bash
-   git clone https://github.com/Nouman-Usman/Flask_API.git
-   cd Flask_API
-   ```
+     ```bash
+     git clone https://github.com/Nouman-Usman/Flask_API.git
+     cd Flask_API
+     ```
 
 2. **Create and activate a virtual environment (optional but recommended):**
 
-   ```bash
-   python3 -m venv env
-   source env/bin/activate  # For Linux/macOS
-   # or
-   .\env\Scripts\activate  # For Windows
-   ```
+     ```bash
+     python3 -m venv env
+     source env/bin/activate  # For Linux/macOS
+     # or
+     .\env\Scripts\activate  # For Windows
+     ```
 
 3. **Install the required dependencies:**
 
-   ```bash
-   pip install -r requirements.txt
-   ```
+     ```bash
+     pip install -r requirements.txt
+     ```
 
 4. **Run initial setup (if any, such as downloading models or setting up a database):**
 
-   _[Include any additional setup instructions here, such as downloading pre-trained models, initializing databases, or other necessary steps.]_
+     _[Include any additional setup instructions here, such as downloading pre-trained models, initializing databases, or other necessary steps.]_
 
 ## Usage
 
 After installation, you can start the application with the following command:
 
 ```bash
-python data_retriver.py
+python data_retriever.py
 ```
 
 Once running, the LangGraph Legal Assistant provides an interface where users can input legal queries related to Pakistani law. Depending on the query type, it will retrieve relevant documents, generate answers, or route the question for a web search. The application also includes hallucination detection to ensure that all generated answers are grounded in authoritative legal sources.
@@ -84,7 +81,6 @@ In this file, you can set parameters such as:
 - Vector store settings
 - API keys for external legal resources
 
-
 ## Contributors
 
 - [Nouman-Usman](https://github.com/Nouman-Usman) – Lead Developer
@@ -94,3 +90,4 @@ In this file, you can set parameters such as:
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+```
