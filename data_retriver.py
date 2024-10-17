@@ -1,5 +1,3 @@
-# 09_LLAMA_3_RAG_AGENT_LOCAL.py
-
 import os
 from dotenv import load_dotenv
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -12,9 +10,14 @@ from langchain_groq import ChatGroq
 from langchain.schema import Document
 from langchain_community.tools.tavily_search import TavilySearchResults
 from langgraph.graph import END, StateGraph
-from typing import List, Dict
+from typing import List, Dict,TypedDict
 from pprint import pprint
 from pinecone import Pinecone
+class GraphState(TypedDict):
+    question: str
+    generation: str
+    web_search: str
+    documents: List[Document]
 class RAGAgent:
     def __init__(self):
         load_dotenv()
@@ -200,7 +203,7 @@ class RAGAgent:
             return "not supported"
 
     def build_workflow(self):
-        workflow = StateGraph()
+        workflow = StateGraph(state_schema=GraphState)
         workflow.add_node("websearch", self.web_search)
         workflow.add_node("retrieve", self.retrieve)
         workflow.add_node("grade_documents", self.grade_documents)
@@ -232,6 +235,7 @@ class RAGAgent:
             },
         )
         return workflow.compile()
+
 
     def run(self, question: str):
         app = self.build_workflow()
