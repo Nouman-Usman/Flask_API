@@ -54,63 +54,67 @@ class RAGAgent:
 
     def _initialize_prompts(self):
         self.retrieval_grader_prompt = PromptTemplate(
-    template="""<|begin_of_text|><|start_header_id|>system<|end_header_id|> You are a legal grader assessing the relevance 
-    of a retrieved legal document to a user’s legal query. If the document contains legal terms or concepts relevant to the query, 
-    grade it as relevant. It should not be a stringent test, but aim to filter out completely unrelated documents. 
-    Provide a binary score 'yes' or 'no' to indicate whether the document is relevant to the query. Provide the score 
-    as a JSON with a single key 'score' and no preamble or explanation. <|eot_id|><|start_header_id|>user<|end_header_id|> 
-    Here is the retrieved document: \n\n {document} \n\n Here is the user query: {question} \n <|eot_id|><|start_header_id|>assistant<|end_header_id|>""",
-    input_variables=["question", "document"],
-)
+            template="""<|begin_of_text|><|start_header_id|>system<|end_header_id|> You are a grader assessing relevance 
+            of a retrieved document to a user question. If the document contains keywords related to the user question, 
+            grade it as relevant. It does not need to be a stringent test. The goal is to filter out erroneous retrievals. \n
+            Give a binary score 'yes' or 'no' score to indicate whether the document is relevant to the question. \n
+            Provide the binary score as a JSON with a single key 'score' and no premable or explaination.
+             <|eot_id|><|start_header_id|>user<|end_header_id|>
+            Here is the retrieved document: \n\n {document} \n\n
+            Here is the user question: {question} \n <|eot_id|><|start_header_id|>assistant<|end_header_id|>
+            """,
+            input_variables=["question", "document"],
+        )
         self.retrieval_grader = self.retrieval_grader_prompt | self.llm | JsonOutputParser()
 
-
         self.generate_prompt = PromptTemplate(
-    template="""<|begin_of_text|><|start_header_id|>system<|end_header_id|> You are a legal assistant for question-answering tasks 
-    in the context of Pakistani law. Use the following pieces of retrieved legal information to answer the query. 
-    If you are unsure about the answer, simply state that. Provide concise answers (three sentences maximum) and use layman's terms 
-    unless the query is from a lawyer, in which case use legal terminology. <|eot_id|><|start_header_id|>user<|end_header_id|> 
-    Query: {question} 
-    Legal Context: {context} 
-    Answer: <|eot_id|><|start_header_id|>assistant<|end_header_id|>""",
-    input_variables=["question", "context"],
-)
+            template="""<|begin_of_text|><|start_header_id|>system<|end_header_id|> You are an assistant for question-answering tasks. 
+            Use the following pieces of retrieved context to answer the question. If you don't know the answer, just say that you don't know. 
+            Use three sentences maximum and keep the answer concise <|eot_id|><|start_header_id|>user<|end_header_id|>
+            Question: {question} 
+            Context: {context} 
+            Answer: <|eot_id|><|start_header_id|>assistant<|end_header_id|>""",
+            input_variables=["question", "context"],
+        )
         self.rag_chain = self.generate_prompt | self.llm | StrOutputParser()
 
-
         self.hallucination_grader_prompt = PromptTemplate(
-    template="""<|begin_of_text|><|start_header_id|>system<|end_header_id|> You are a legal grader assessing whether 
-    an answer is grounded in / supported by relevant legal information. Provide a binary score 'yes' or 'no' 
-    to indicate whether the answer is supported by the facts presented. Provide the score as a JSON with a single key 'score' 
-    and no preamble or explanation. <|eot_id|><|start_header_id|>user<|end_header_id|> 
-    Here are the legal facts: \n ------- \n {documents} \n ------- \n 
-    Here is the answer: {generation}  <|eot_id|><|start_header_id|>assistant<|end_header_id|>""",
-    input_variables=["generation", "documents"],
-)
+            template=""" <|begin_of_text|><|start_header_id|>system<|end_header_id|> You are a grader assessing whether 
+            an answer is grounded in / supported by a set of facts. Give a binary score 'yes' or 'no' score to indicate 
+            whether the answer is grounded in / supported by a set of facts. Provide the binary score as a JSON with a 
+            single key 'score' and no preamble or explanation. <|eot_id|><|start_header_id|>user<|end_header_id|>
+            Here are the facts:
+            \n ------- \n
+            {documents} 
+            \n ------- \n
+            Here is the answer: {generation}  <|eot_id|><|start_header_id|>assistant<|end_header_id|>""",
+            input_variables=["generation", "documents"],
+        )
         self.hallucination_grader = self.hallucination_grader_prompt | self.llm | JsonOutputParser()
 
-
         self.answer_grader_prompt = PromptTemplate(
-    template="""<|begin_of_text|><|start_header_id|>system<|end_header_id|> You are a legal grader assessing whether an 
-    answer is useful in addressing a legal query. Provide a binary score 'yes' or 'no' to indicate if the answer 
-    is useful for resolving the query based on Pakistani law. Provide the score as a JSON with a single key 'score' 
-    and no preamble or explanation. <|eot_id|><|start_header_id|>user<|end_header_id|> 
-    Here is the answer: \n ------- \n {generation} \n ------- \n Here is the legal query: {question} <|eot_id|><|start_header_id|>assistant<|end_header_id|>""",
-    input_variables=["generation", "question"],
-)
+            template="""<|begin_of_text|><|start_header_id|>system<|end_header_id|> You are a grader assessing whether an 
+            answer is useful to resolve a question. Give a binary score 'yes' or 'no' to indicate whether the answer is 
+            useful to resolve a question. Provide the binary score as a JSON with a single key 'score' and no preamble or explanation.
+             <|eot_id|><|start_header_id|>user<|end_header_id|> Here is the answer:
+            \n ------- \n
+            {generation} 
+            \n ------- \n
+            Here is the question: {question} <|eot_id|><|start_header_id|>assistant<|end_header_id|>""",
+            input_variables=["generation", "question"],
+        )
         self.answer_grader = self.answer_grader_prompt | self.llm | JsonOutputParser()
 
-
         self.question_router_prompt = PromptTemplate(
-    template="""<|begin_of_text|><|start_header_id|>system<|end_header_id|> You are an expert at routing legal queries. 
-    Route user questions to either the legal database (for detailed legal information) or web search (for general legal advice). 
-    Use the legal database for questions related to specific laws, case rulings, or legal precedents in Pakistan. 
-    For broader inquiries, choose web search. Provide the routing choice as a JSON with a single key 'datasource' and no preamble or explanation. 
-    Legal Query to route: {question} <|eot_id|><|start_header_id|>assistant<|end_header_id|>""",
-    input_variables=["question"],
-)
+            template="""<|begin_of_text|><|start_header_id|>system<|end_header_id|> You are an expert at routing a 
+            user question to a vectorstore or web search. Use the vectorstore for questions on LLM  agents, 
+            prompt engineering, and adversarial attacks. You do not need to be stringent with the keywords 
+            in the question related to these topics. Otherwise, use web-search. Give a binary choice 'web_search' 
+            or 'vectorstore' based on the question. Return the a JSON with a single key 'datasource' and 
+            no premable or explaination. Question to route: {question} <|eot_id|><|start_header_id|>assistant<|end_header_id|>""",
+            input_variables=["question"],
+        )
         self.question_router = self.question_router_prompt | self.llm | JsonOutputParser()
-
 
     def retrieve(self, state: Dict) -> Dict:
         print("---RETRIEVE---")
