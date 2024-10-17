@@ -9,3 +9,4 @@ langgraph
 pprint
 pinecone-client
 typing-extensions
+requests
