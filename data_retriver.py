@@ -243,5 +243,5 @@ class RAGAgent:
 
 if __name__ == "__main__":
     agent = RAGAgent()
-    agent.run("What do you know about Zainab Alert Case?")
-    agent.run("Define law")
+    agent.run("What are the types of agent memory?")
+    agent.run("What does AI Model do?")
