@@ -13,6 +13,8 @@ from langgraph.graph import END, StateGraph
 from typing import List, Dict,TypedDict
 from pprint import pprint
 from pinecone import Pinecone
+from dotenv import load_dotenv
+load_dotenv()
 class GraphState(TypedDict):
     question: str
     generation: str
@@ -24,9 +26,13 @@ class RAGAgent:
         self.api_key = os.getenv('PINECONE_API')
         self.legal_index_name = "lang-graph"
         self.web_search_index_name = "web-search-legal"
-        self.pc = Pinecone(api_key=self.api_key)
+        self.pc = Pinecone(api_key=self.api_key)    
+        # print(os.getenv('PINECONE_API'))
+        # breakpoint()    
         self.index = self.pc.Index(self.legal_index_name)
         self.web_search_index = self.pc.Index(self.web_search_index_name)
+        # print("Done")
+        # breakpoint()
         self.llm = ChatGroq(temperature=0, model="llama3-groq-70b-8192-tool-use-preview")
         self.vectorstore = None
         self.retriever = None
@@ -148,7 +154,7 @@ class RAGAgent:
     def web_search(self, state: Dict) -> Dict:
         print("---WEB SEARCH---")
         question = state["question"]
-        documents = state["documents"]
+        documents = state.get("documents",[])
         docs = self.web_search_tool.invoke({"query": question})
         web_results = "\n".join([d["content"] for d in docs])
         web_results = Document(page_content=web_results)
@@ -246,5 +252,4 @@ class RAGAgent:
 if __name__ == "__main__":
     agent = RAGAgent()
     print("Thinking...")
-    # agent.run("What are the types of agent memory?")
-    agent.run("Wat is the legal age for marriage in Pakistan?")
+    agent.run("Explain THE CO-OPERATIVE SOCIETIES ACT?")
