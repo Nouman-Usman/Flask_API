@@ -1,12 +1,9 @@
-dotenv
 langchain
 langchain_huggingface
 langchain_pinecone
-langchain_core
 langchain_groq
 langchain_community
 langgraph
-pprint
 pinecone-client
-typing-extensions
-requests
+transformers
+python-dotenv

@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+
 # from langchain_community.document_loaders import WebBaseLoader
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_pinecone import PineconeVectorStore
@@ -10,35 +11,92 @@ from langchain_groq import ChatGroq
 from langchain.schema import Document
 from langchain_community.tools.tavily_search import TavilySearchResults
 from langgraph.graph import END, StateGraph
-from typing import List, Dict,TypedDict
+from typing import List, Dict, TypedDict
 from pprint import pprint
 from pinecone import Pinecone
+import json
+from transformers import pipeline
+import csv
 from dotenv import load_dotenv
+
 load_dotenv()
+
+
 class GraphState(TypedDict):
     question: str
     generation: str
     web_search: str
     documents: List[Document]
+
+
 class RAGAgent:
     def __init__(self):
         load_dotenv()
-        self.api_key = os.getenv('PINECONE_API')
+        self.api_key = os.getenv("PINECONE_API")
         self.legal_index_name = "lang-graph"
         self.web_search_index_name = "web-search-legal"
-        self.pc = Pinecone(api_key=self.api_key)    
-        # print(os.getenv('PINECONE_API'))
-        # breakpoint()    
+        self.pc = Pinecone(api_key=self.api_key)
         self.index = self.pc.Index(self.legal_index_name)
         self.web_search_index = self.pc.Index(self.web_search_index_name)
-        # print("Done")
-        # breakpoint()
-        self.llm = ChatGroq(temperature=0, model="llama3-groq-70b-8192-tool-use-preview")
+        self.llm = ChatGroq(
+            temperature=0, model="llama3-groq-70b-8192-tool-use-preview"
+        )
         self.vectorstore = None
         self.retriever = None
         self.web_search_tool = TavilySearchResults(k=3)
         self._initialize_vectorstore()
         self._initialize_prompts()
+        # self.sentiment_analyzer = pipeline("text-classification", model="Shreyagg2202/Bert-Custom-Sentiment-Analysis")
+
+    def _load_lawyers(self):
+        with open("lawyers.csv", mode="r") as file:
+            csv_reader = csv.DictReader(file)
+            for row in csv_reader:
+                self.lawyers.append(row)
+        print("Lawyers data loaded successfully.")
+
+    def _recommend_lawyer(self, specialty):
+        relevant_lawyers = [
+            lawyer
+            for lawyer in self.lawyers
+            if lawyer["Type (Specialty)"].lower() == specialty.lower()
+        ]
+        if not relevant_lawyers:
+            return "No lawyer found for this specialty."
+
+        best_lawyer = max(relevant_lawyers, key=lambda l: float(l["Ratings"]))
+        return (
+            f"Recommended lawyer: {best_lawyer['Lawyer Name']}, Specialty: {best_lawyer['Type (Specialty)']}, "
+            f"Experience: {best_lawyer['Experience (Years)']} years, Ratings: {best_lawyer['Ratings']}/5, "
+            f"Location: {best_lawyer['Location']}."
+        )
+
+    def analyze_sentiment(self, question: str) -> str:
+        print("---SENTIMENT ANALYSIS---")
+        prompt = f"""
+        Analyze the sentiment of the following text and categorize it into one of the following categories:
+        1. Civil Lawyers
+2. Criminal Lawyers
+3. Corporate Lawyers
+4. Constitutional Lawyers
+5. Tax Lawyers
+6. Family Lawyers
+7. Intellectual Property Lawyers
+8. Labor and Employment Lawyers
+9. Immigration Lawyers
+10. Human Rights Lawyers
+11. Environmental Lawyers
+12. Banking and Finance Lawyers
+13. Cyber Law Lawyers
+14. Alternate Dispute Resolution (ADR) Lawyers
+
+Please return only the category name that best fits the text: "{question}"
+"""
+        sentiment_result = self.llm.invoke(prompt)
+        sentiment = sentiment_result.content.strip()
+        print(sentiment)
+        breakpoint()
+        return sentiment        
 
     def _initialize_vectorstore(self):
         # urls = [
@@ -71,7 +129,9 @@ class RAGAgent:
             """,
             input_variables=["question", "document"],
         )
-        self.retrieval_grader = self.retrieval_grader_prompt | self.llm | JsonOutputParser()
+        self.retrieval_grader = (
+            self.retrieval_grader_prompt | self.llm | JsonOutputParser()
+        )
 
         self.generate_prompt = PromptTemplate(
             template="""<|begin_of_text|><|start_header_id|>system<|end_header_id|> You are a legal assistant for question-answering tasks in the context of Pakistani law. Use the following pieces of retrieved legal information to answer the query. If you are unsure about the answer, simply state that. Provide well structured answers. |eot_id|><|start_header_id|>user<|end_header_id|>
@@ -94,7 +154,9 @@ class RAGAgent:
             Here is the answer: {generation}  <|eot_id|><|start_header_id|>assistant<|end_header_id|>""",
             input_variables=["generation", "documents"],
         )
-        self.hallucination_grader = self.hallucination_grader_prompt | self.llm | JsonOutputParser()
+        self.hallucination_grader = (
+            self.hallucination_grader_prompt | self.llm | JsonOutputParser()
+        )
 
         self.answer_grader_prompt = PromptTemplate(
             template="""<|begin_of_text|><|start_header_id|>system<|end_header_id|> You are a grader assessing whether an 
@@ -118,7 +180,9 @@ class RAGAgent:
             no premable or explaination. Question to route: {question} <|eot_id|><|start_header_id|>assistant<|end_header_id|>""",
             input_variables=["question"],
         )
-        self.question_router = self.question_router_prompt | self.llm | JsonOutputParser()
+        self.question_router = (
+            self.question_router_prompt | self.llm | JsonOutputParser()
+        )
 
     def retrieve(self, state: Dict) -> Dict:
         print("---RETRIEVE---")
@@ -140,8 +204,10 @@ class RAGAgent:
         filtered_docs = []
         web_search = "No"
         for d in documents:
-            score = self.retrieval_grader.invoke({"question": question, "document": d.page_content})
-            grade = score['score']
+            score = self.retrieval_grader.invoke(
+                {"question": question, "document": d.page_content}
+            )
+            grade = score["score"]
             if grade.lower() == "yes":
                 print("---GRADE: DOCUMENT RELEVANT---")
                 filtered_docs.append(d)
@@ -149,29 +215,44 @@ class RAGAgent:
                 print("---GRADE: DOCUMENT NOT RELEVANT---")
                 web_search = "Yes"
                 continue
-        return {"documents": filtered_docs, "question": question, "web_search": web_search}
+        return {
+            "documents": filtered_docs,
+            "question": question,
+            "web_search": web_search,
+        }
 
     def web_search(self, state: Dict) -> Dict:
         print("---WEB SEARCH---")
         question = state["question"]
-        documents = state.get("documents",[])
+        documents = state.get("documents", [])
         docs = self.web_search_tool.invoke({"query": question})
+
+        # Check if docs is a non-empty string and parse it as JSON if necessary
+        if isinstance(docs, str) and docs.strip():
+            try:
+                docs = json.loads(docs)
+            except json.JSONDecodeError:
+                print("Failed to decode JSON from docs")
+                docs = []
+
         web_results = "\n".join([d["content"] for d in docs])
         web_results = Document(page_content=web_results)
+
         if documents is not None:
             documents.append(web_results)
         else:
             documents = [web_results]
+
         return {"documents": documents, "question": question}
 
     def route_question(self, state: Dict) -> str:
         print("---ROUTE QUESTION---")
         question = state["question"]
-        source = self.question_router.invoke({"question": question})  
-        if source['datasource'] == 'web_search':
+        source = self.question_router.invoke({"question": question})
+        if source["datasource"] == "web_search":
             print("---ROUTE QUESTION TO WEB SEARCH---")
             return "websearch"
-        elif source['datasource'] == 'vectorstore':
+        elif source["datasource"] == "vectorstore":
             print("---ROUTE QUESTION TO RAG---")
             return "vectorstore"
 
@@ -179,7 +260,9 @@ class RAGAgent:
         print("---ASSESS GRADED DOCUMENTS---")
         web_search = state["web_search"]
         if web_search == "Yes":
-            print("---DECISION: ALL DOCUMENTS ARE NOT RELEVANT TO QUESTION, INCLUDE WEB SEARCH---")
+            print(
+                "---DECISION: ALL DOCUMENTS ARE NOT RELEVANT TO QUESTION, INCLUDE WEB SEARCH---"
+            )
             return "websearch"
         else:
             print("---DECISION: GENERATE---")
@@ -190,12 +273,16 @@ class RAGAgent:
         question = state["question"]
         documents = state["documents"]
         generation = state["generation"]
-        score = self.hallucination_grader.invoke({"documents": documents, "generation": generation})
-        grade = score['score']
+        score = self.hallucination_grader.invoke(
+            {"documents": documents, "generation": generation}
+        )
+        grade = score["score"]
         if grade == "yes":
             print("---DECISION: GENERATION IS GROUNDED IN DOCUMENTS---")
-            score = self.answer_grader.invoke({"question": question,"generation": generation})
-            grade = score['score']
+            score = self.answer_grader.invoke(
+                {"question": question, "generation": generation}
+            )
+            grade = score["score"]
             if grade == "yes":
                 print("---DECISION: GENERATION ADDRESSES QUESTION---")
                 return "useful"
@@ -240,8 +327,11 @@ class RAGAgent:
         )
         return workflow.compile()
 
-
     def run(self, question: str):
+        # Perform sentiment analysis on the question
+        sentiment = self.analyze_sentiment(question)
+        # print(sentiment)
+        # breakpoint()
         app = self.build_workflow()
         inputs = {"question": question}
         for output in app.stream(inputs):
@@ -249,7 +339,11 @@ class RAGAgent:
                 pprint(f"Finished running: {key}:")
         pprint(value["generation"])
 
+
 if __name__ == "__main__":
     agent = RAGAgent()
-    print("Thinking...")
-    agent.run("Explain THE CO-OPERATIVE SOCIETIES ACT?")
+    while True:
+        agent.run(input("What is your legal query: "))
+
+        # print("Thinking...")
+        # agent.run("I've killed a person. What should I do?")
