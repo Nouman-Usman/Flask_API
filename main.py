@@ -94,8 +94,8 @@ Please return only the category name that best fits the text: "{question}"
 """
         sentiment_result = self.llm.invoke(prompt)
         sentiment = sentiment_result.content.strip()
-        print(sentiment)
-        breakpoint()
+        # print(sentiment)
+        # breakpoint()
         return sentiment        
 
     def _initialize_vectorstore(self):
@@ -342,8 +342,8 @@ Please return only the category name that best fits the text: "{question}"
 
 if __name__ == "__main__":
     agent = RAGAgent()
+        # print("Thinking...")
+        # agent.run("I've killed a person. What should I do?")
     while True:
         agent.run(input("What is your legal query: "))
 
-        # print("Thinking...")
-        # agent.run("I've killed a person. What should I do?")
