@@ -33,7 +33,7 @@ class RAGAgent:
     def __init__(self):
         load_dotenv()
         self.api_key = os.getenv("PINECONE_API")
-        self.legal_index_name = "lang-graph"
+        self.legal_index_name = "apna-waqeel"
         self.web_search_index_name = "web-search-legal"
         self.pc = Pinecone(api_key=self.api_key)
         self.index = self.pc.Index(self.legal_index_name)
@@ -188,22 +188,36 @@ Please return only the category name that best fits the text: "{question}"
         print("---RETRIEVE---")
         question = state["question"]
         documents = self.retriever.invoke(question)
+        metadata = [doc.metadata for doc in documents]
+        print("Documents: ", documents)
+        print("Metadata: ", metadata)
+        breakpoint()      
         return {"documents": documents, "question": question}
 
     def generate(self, state: Dict) -> Dict:
         print("---GENERATE---")
         question = state["question"]
         documents = state["documents"]
+        metadata = state["metadata"]
+        print("Documents : ", documents)
         generation = self.rag_chain.invoke({"context": documents, "question": question})
-        return {"documents": documents, "question": question, "generation": generation}
+        print("Metadata: ", metadata)
+        return {
+            "documents": documents,
+            "question": question,
+            "generation": generation,
+            "metadata": metadata
+        }
 
     def grade_documents(self, state: Dict) -> Dict:
         print("---CHECK DOCUMENT RELEVANCE TO QUESTION---")
         question = state["question"]
         documents = state["documents"]
+        metadata = state["metadata"]
         filtered_docs = []
+        filtered_metadata = []
         web_search = "No"
-        for d in documents:
+        for d, m in zip(documents, metadata):
             score = self.retrieval_grader.invoke(
                 {"question": question, "document": d.page_content}
             )
@@ -211,12 +225,14 @@ Please return only the category name that best fits the text: "{question}"
             if grade.lower() == "yes":
                 print("---GRADE: DOCUMENT RELEVANT---")
                 filtered_docs.append(d)
+                filtered_metadata.append(m)
             else:
                 print("---GRADE: DOCUMENT NOT RELEVANT---")
                 web_search = "Yes"
                 continue
         return {
             "documents": filtered_docs,
+            "metadata": filtered_metadata,
             "question": question,
             "web_search": web_search,
         }
@@ -225,9 +241,9 @@ Please return only the category name that best fits the text: "{question}"
         print("---WEB SEARCH---")
         question = state["question"]
         documents = state.get("documents", [])
+        metadata = state.get("metadata", [])
         docs = self.web_search_tool.invoke({"query": question})
 
-        # Check if docs is a non-empty string and parse it as JSON if necessary
         if isinstance(docs, str) and docs.strip():
             try:
                 docs = json.loads(docs)
@@ -240,10 +256,12 @@ Please return only the category name that best fits the text: "{question}"
 
         if documents is not None:
             documents.append(web_results)
+            metadata.append({})
         else:
             documents = [web_results]
+            metadata = [{}]
 
-        return {"documents": documents, "question": question}
+        return {"documents": documents, "metadata": metadata, "question": question}
 
     def route_question(self, state: Dict) -> str:
         print("---ROUTE QUESTION---")
@@ -273,24 +291,28 @@ Please return only the category name that best fits the text: "{question}"
         question = state["question"]
         documents = state["documents"]
         generation = state["generation"]
-        score = self.hallucination_grader.invoke(
-            {"documents": documents, "generation": generation}
-        )
-        grade = score["score"]
-        if grade == "yes":
-            print("---DECISION: GENERATION IS GROUNDED IN DOCUMENTS---")
-            score = self.answer_grader.invoke(
-                {"question": question, "generation": generation}
+        try:
+            score = self.hallucination_grader.invoke(
+                {"documents": documents, "generation": generation}
             )
             grade = score["score"]
             if grade == "yes":
-                print("---DECISION: GENERATION ADDRESSES QUESTION---")
-                return "useful"
+                print("---DECISION: GENERATION IS GROUNDED IN DOCUMENTS---")
+                score = self.answer_grader.invoke(
+                    {"question": question, "generation": generation}
+                )
+                grade = score["score"]
+                if grade == "yes":
+                    print("---DECISION: GENERATION ADDRESSES QUESTION---")
+                    return "useful"
+                else:
+                    print("---DECISION: GENERATION DOES NOT ADDRESS QUESTION---")
+                    return "not useful"
             else:
-                print("---DECISION: GENERATION DOES NOT ADDRESS QUESTION---")
-                return "not useful"
-        else:
-            pprint("---DECISION: GENERATION IS NOT GROUNDED IN DOCUMENTS, RE-TRY---")
+                pprint("---DECISION: GENERATION IS NOT GROUNDED IN DOCUMENTS, RE-TRY---")
+                return "not supported"
+        except json.JSONDecodeError as e:
+            print(f"JSON decode error: {e}")
             return "not supported"
 
     def build_workflow(self):
@@ -330,7 +352,7 @@ Please return only the category name that best fits the text: "{question}"
     def run(self, question: str):
         # Perform sentiment analysis on the question
         sentiment = self.analyze_sentiment(question)
-        # print(sentiment)
+        print(sentiment)
         # breakpoint()
         app = self.build_workflow()
         inputs = {"question": question}
@@ -346,4 +368,3 @@ if __name__ == "__main__":
         # agent.run("I've killed a person. What should I do?")
     while True:
         agent.run(input("What is your legal query: "))
-
