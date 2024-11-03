@@ -13,6 +13,7 @@ from langchain_community.tools.tavily_search import TavilySearchResults
 from langgraph.graph import END, StateGraph
 from typing import List, Dict, TypedDict
 from pprint import pprint
+import blob
 from pinecone import Pinecone
 import json
 from transformers import pipeline
@@ -189,8 +190,11 @@ Please return only the category name that best fits the text: "{question}"
         question = state["question"]
         documents = self.retriever.invoke(question)
         metadata = [doc.metadata for doc in documents]
-        print("Documents: ", documents)
-        print("Metadata: ", metadata)
+        # print("Documents: ", documents)
+        # print("Metadata: ", metadata)
+        file_names = [item['file_name'] for item in metadata]
+        print(file_names)
+        print(blob.download_Blob(file_names))
         breakpoint()      
         return {"documents": documents, "question": question}
 
@@ -198,26 +202,26 @@ Please return only the category name that best fits the text: "{question}"
         print("---GENERATE---")
         question = state["question"]
         documents = state["documents"]
-        metadata = state["metadata"]
+        # metadata = state["metadata"]
         print("Documents : ", documents)
         generation = self.rag_chain.invoke({"context": documents, "question": question})
-        print("Metadata: ", metadata)
+        # print("Metadata: ", metadata)
         return {
             "documents": documents,
             "question": question,
             "generation": generation,
-            "metadata": metadata
+            # "metadata": metadata
         }
 
     def grade_documents(self, state: Dict) -> Dict:
         print("---CHECK DOCUMENT RELEVANCE TO QUESTION---")
         question = state["question"]
         documents = state["documents"]
-        metadata = state["metadata"]
+        # metadata = state["metadata"]
         filtered_docs = []
         filtered_metadata = []
         web_search = "No"
-        for d, m in zip(documents, metadata):
+        for d, m in zip(documents):
             score = self.retrieval_grader.invoke(
                 {"question": question, "document": d.page_content}
             )
@@ -232,7 +236,7 @@ Please return only the category name that best fits the text: "{question}"
                 continue
         return {
             "documents": filtered_docs,
-            "metadata": filtered_metadata,
+            # "metadata": filtered_metadata,
             "question": question,
             "web_search": web_search,
         }
@@ -241,7 +245,7 @@ Please return only the category name that best fits the text: "{question}"
         print("---WEB SEARCH---")
         question = state["question"]
         documents = state.get("documents", [])
-        metadata = state.get("metadata", [])
+        # metadata = state.get("metadata", [])
         docs = self.web_search_tool.invoke({"query": question})
 
         if isinstance(docs, str) and docs.strip():
@@ -256,12 +260,12 @@ Please return only the category name that best fits the text: "{question}"
 
         if documents is not None:
             documents.append(web_results)
-            metadata.append({})
+            # metadata.append({})
         else:
             documents = [web_results]
-            metadata = [{}]
+            # metadata = [{}]
 
-        return {"documents": documents, "metadata": metadata, "question": question}
+        return {"documents": documents, "question": question}
 
     def route_question(self, state: Dict) -> str:
         print("---ROUTE QUESTION---")
