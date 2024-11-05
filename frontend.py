@@ -1,9 +1,12 @@
-import streamlit as st
-import main
-st.title("Streamlit App for main.py")
-input_value = st.text_input("Enter a value:")
+import chainlit as cl 
+from main import RAGAgent
 
-if st.button("Run"):
-    agent = main.RAGAgent()
-    result = agent.run(input_value)  # Replace with actual function call
-    st.write("Result:", result)
+@cl.on_message
+async def main(message: cl.Message):
+    print(f"Received: {message.content}")
+    agent = RAGAgent()
+    result = agent.run(message.content)
+    await cl.Message(
+        content=f"Result: {result}",
+    ).send()
+# Which types of proceedings are excluded from the application of this Act as per Section 3?

@@ -95,8 +95,6 @@ Please return only the category name that best fits the text: "{question}"
 """
         sentiment_result = self.llm.invoke(prompt)
         sentiment = sentiment_result.content.strip()
-        # print(sentiment)
-        # breakpoint()
         return sentiment        
 
     def _initialize_vectorstore(self):
@@ -189,39 +187,35 @@ Please return only the category name that best fits the text: "{question}"
         print("---RETRIEVE---")
         question = state["question"]
         documents = self.retriever.invoke(question)
-        metadata = [doc.metadata for doc in documents]
-        # print("Documents: ", documents)
-        # print("Metadata: ", metadata)
-        file_names = [item['file_name'] for item in metadata]
-        print(file_names)
-        print(blob.download_Blob(file_names))
-        breakpoint()      
         return {"documents": documents, "question": question}
 
     def generate(self, state: Dict) -> Dict:
         print("---GENERATE---")
         question = state["question"]
         documents = state["documents"]
-        # metadata = state["metadata"]
-        print("Documents : ", documents)
+        print(documents)
+        # breakpoint()
+        metadata = [doc.metadata for doc in documents]
+        file_names = [item['file_name'] for item in metadata if 'file_name' in item]
+        filtered_metadata = blob.get_blob_urls(file_names)
         generation = self.rag_chain.invoke({"context": documents, "question": question})
-        # print("Metadata: ", metadata)
+        if(filtered_metadata):
+            final_answer = f"{generation} \n Reference: {', '.join(filtered_metadata)}"
+        else:
+            final_answer = generation
         return {
             "documents": documents,
             "question": question,
-            "generation": generation,
-            # "metadata": metadata
+            "generation": final_answer,
         }
 
     def grade_documents(self, state: Dict) -> Dict:
         print("---CHECK DOCUMENT RELEVANCE TO QUESTION---")
         question = state["question"]
         documents = state["documents"]
-        # metadata = state["metadata"]
         filtered_docs = []
-        filtered_metadata = []
         web_search = "No"
-        for d, m in zip(documents):
+        for d in (documents):
             score = self.retrieval_grader.invoke(
                 {"question": question, "document": d.page_content}
             )
@@ -229,7 +223,7 @@ Please return only the category name that best fits the text: "{question}"
             if grade.lower() == "yes":
                 print("---GRADE: DOCUMENT RELEVANT---")
                 filtered_docs.append(d)
-                filtered_metadata.append(m)
+                # filtered_metadata.append(m)
             else:
                 print("---GRADE: DOCUMENT NOT RELEVANT---")
                 web_search = "Yes"
@@ -363,12 +357,13 @@ Please return only the category name that best fits the text: "{question}"
         for output in app.stream(inputs):
             for key, value in output.items():
                 pprint(f"Finished running: {key}:")
-        pprint(value["generation"])
+        # pprint(value["generation"])
+        return value["generation"]
 
 
 if __name__ == "__main__":
     agent = RAGAgent()
-        # print("Thinking...")
-        # agent.run("I've killed a person. What should I do?")
-    while True:
-        agent.run(input("What is your legal query: "))
+    print("Thinking...")
+    agent.run("Explain Legal disability according to THE LIMITATION ACT")
+    # while True:
+    #     agent.run(input("What is your legal query: "))
